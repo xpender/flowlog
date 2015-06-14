@@ -1,0 +1,166 @@
+#!/usr/bin/env php
+<?php
+// PROJECT_ROOT
+define('PROJECT_ROOT', realpath(__DIR__));
+
+// composer
+require PROJECT_ROOT . '/vendor/autoload.php';
+
+// config
+require PROJECT_ROOT . '/config.php';
+
+// uses
+use Aws\Ec2\Ec2Client;
+use Aws\Ec2\Exception\Ec2Exception;
+
+// init ec2 client
+$ec2client = new Ec2Client([
+    'region' => $config['region'],
+    'version' => 'latest',
+    'debug' => false
+    ]);
+
+// iterate over logStreams
+$logStreams = json_decode(
+    file_get_contents(PROJECT_ROOT . '/data/logStreams.json'),
+    true
+    );
+
+foreach (array_keys($logStreams) as $eni) {
+    _log('analyzing ' . $eni);
+
+    $ips = [];
+
+    // describe addresses
+    try {
+        $res = $ec2client->describeNetworkInterfaces([
+            'NetworkInterfaceIds' => [substr($eni, 0, 12)]
+            ]);
+    } catch (Ec2Exception $e) {
+        // FIXME: Interface might be destroyed
+
+        continue;
+    }
+
+    if ($res->hasKey('NetworkInterfaces')) {
+        foreach ($res->get('NetworkInterfaces') as $iface) {
+            foreach ($iface['PrivateIpAddresses'] as $prvip) {
+                if ($prvip['PrivateIpAddress']) {
+                    $ips[] = $prvip['PrivateIpAddress'];
+                }
+
+                if (isset($prvip['Association']) && isset($prvip['Association']['PublicIp'])) {
+                    $ips[] = $prvip['Association']['PublicIp'];
+                }
+            }
+        }
+    }
+
+    // get events
+    $events = json_decode(
+        file_get_contents(PROJECT_ROOT . '/data/' . $eni . '.json'),
+        true
+        );
+
+    $stats = [
+        'in' => [
+            'total' => 0,
+            'acc' => [
+                'total' => 0,
+                'port' => [],
+                'ip' => [],
+                ],
+            'rej' => [
+                'total' => 0,
+                'port' => [],
+                'ip' => [],
+                ],
+            ],
+        'out' => [
+            'total' => 0,
+            'acc' => [
+                'total' => 0,
+                'port' => [],
+                'ip' => [],
+                ],
+            'rej' => [
+                'total' => 0,
+                'port' => [],
+                'ip' => [],
+                ],
+            ],
+        'total' => [
+            'total' => 0,
+            'acc' => [
+                'total' => 0,
+                'port' => [],
+                'ip' => [],
+                ],
+            'rej' => [
+                'total' => 0,
+                'port' => [],
+                'ip' => [],
+                ],
+            ],
+        ];
+
+    foreach ($events as $event) {
+        $x = explode(' ' , $event['message']);
+
+        if ($x[0] != 2) continue; // support flow log version 2 only
+
+        list($version, $accountid, $interfaceid, $srcaddr, $dstaddr, $srcport, $dstport, $protocol, $packets, $bytes, $start, $end, $action, $logstatus) = $x;
+
+        $a = false; $ip = false; $port = false;
+
+        if (in_array($srcaddr, $ips)) {
+            $a = 'out';
+            $ip = $dstaddr;
+            $port = $dstport;
+        } else {
+            $a = 'in';
+            $ip = $srcaddr;
+            $port = $srcport;
+        }
+
+        $b = false;
+
+        if ($action == 'ACCEPT') $b = 'acc';
+        else $b = 'rej';
+
+        // in || out
+        $stats[$a]['total'] += $bytes;
+        $stats[$a][$b]['total'] += $bytes;
+
+        if (!isset($stats[$a][$b]['port'][$port])) $stats[$a][$b]['port'][$port] = 0;
+
+        $stats[$a][$b]['port'][$port] += $bytes;
+
+        if (!isset($stats[$a][$b]['ip'][$ip])) $stats[$a][$b]['ip'][$ip] = 0;
+
+        $stats[$a][$b]['ip'][$ip] += $bytes;
+
+        // total
+        $stats['total']['total'] += $bytes;
+        $stats['total'][$b]['total'] += $bytes;
+
+        if (!isset($stats['total'][$b]['port'][$port])) $stats['total'][$b]['port'][$port] = 0;
+
+        $stats['total'][$b]['port'][$port] += $bytes;
+
+        if (!isset($stats['total'][$b]['ip'][$ip])) $stats['total'][$b]['ip'][$ip] = 0;
+
+        $stats['total'][$b]['ip'][$ip] += $bytes;
+    }
+
+    file_put_contents(
+        PROJECT_ROOT . '/data/' . $eni . '.stats.json',
+        json_encode($stats)
+        );
+}
+
+// _log
+function _log($msg)
+{
+    echo '[?] ' . $msg . "\n";
+}
