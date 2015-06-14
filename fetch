@@ -14,7 +14,7 @@ use Aws\CloudWatch\CloudWatchClient;
 use Aws\CloudWatchLogs\CloudWatchLogsClient;
 
 // init cloudwatch client
-$client = new CloudWatchLogsClient([
+$cwlclient = new CloudWatchLogsClient([
     'region' => $config['region'],
     'version' => 'latest',
     'debug' => false
@@ -25,7 +25,7 @@ $logStreams = [];
 
 _log('fetching logstreams');
 
-_recursiveDescribeLogStreams($client, $config['LogGroupName'], $logStreams);
+_recursiveDescribeLogStreams($cwlclient, $config['LogGroupName'], $logStreams);
 
 _debug(count($logStreams) . ' logstreams');
 
@@ -38,7 +38,7 @@ foreach ($logStreams as $logStream) {
 
     _log('fetching ' . $logStream['logStreamName'] . ' events');
 
-    _recursiveGetLogEvents($client, $config['LogGroupName'], $logStream['logStreamName'], $events);
+    _recursiveGetLogEvents($cwlclient, $config['LogGroupName'], $logStream['logStreamName'], $events);
 
     _debug(count($events) . ' events');
 
