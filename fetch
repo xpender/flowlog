@@ -34,15 +34,18 @@ file_put_contents(PROJECT_ROOT . '/data/logStreams.json', json_encode($logStream
 
 // fetch events..
 foreach ($logStreams as $logStream) {
-    $events = [];
-
     _log('fetching ' . $logStream['logStreamName'] . ' events');
 
-    _recursiveGetLogEvents($cwlclient, $config['LogGroupName'], $logStream['logStreamName'], $config['StartTime'], $config['EndTime'], $events);
+    $fp = fopen(
+        PROJECT_ROOT . '/data/' . $logStream['logStreamName'] . '.log',
+        'w'
+        );
 
-    _debug(count($events) . ' events');
+    $events = _recursiveGetLogEvents($cwlclient, $config['LogGroupName'], $logStream['logStreamName'], $config['StartTime'], $config['EndTime'], $fp);
 
-    file_put_contents(PROJECT_ROOT . '/data/' . $logStream['logStreamName'] . '.json', json_encode($events));
+    fclose($fp);
+
+    _debug($events . ' events');
 }
 
 // _log
@@ -82,8 +85,10 @@ function _recursiveDescribeLogStreams($client, $logGroupName, &$return, $nextTok
 }
 
 // _recursiveGetLogEvents($client, $logGroupName, $logStreamName, &$return, $nextToken);
-function _recursiveGetLogEvents($client, $logGroupName, $logStreamName, $startTime, $endTime, &$return, $nextToken = false)
+function _recursiveGetLogEvents($client, $logGroupName, $logStreamName, $startTime, $endTime, &$fp, $nextToken = false)
 {
+    $events = 0;
+
     usleep(250000); // GetLogEvents is throttled to 5 request per second
 
     $req = [
@@ -92,7 +97,6 @@ function _recursiveGetLogEvents($client, $logGroupName, $logStreamName, $startTi
         'startFromHead' => true,
         'startTime' => $startTime,
         'endTime' => $endTime,
-        'limit' => 10000
         ];
 
     if ($nextToken) {
@@ -107,11 +111,18 @@ function _recursiveGetLogEvents($client, $logGroupName, $logStreamName, $startTi
         $count = count($res->get('events'));
 
         foreach ($res->get('events') as $event) {
-            $return[] = $event;
+            fwrite($fp, trim($event['message']) . "\n");
+            $events++;
         }
     }
 
     if ($res->hasKey('nextForwardToken') && ($count || !$nextToken)) {
-        _recursiveGetLogEvents($client, $logGroupName, $logStreamName, $startTime, $endTime, $return, $res->get('nextForwardToken'));
+        $events += _recursiveGetLogEvents($client, $logGroupName, $logStreamName, $startTime, $endTime, $fp, $res->get('nextForwardToken'));
     }
+
+    unset($req);
+    unset($res);
+    unset($count);
+
+    return $events;
 }
