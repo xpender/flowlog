@@ -15,7 +15,7 @@ use Aws\CloudWatchLogs\CloudWatchLogsClient;
 
 // init cloudwatch client
 $cwlclient = new CloudWatchLogsClient([
-    'region' => $config['region'],
+    'region' => $config['Region'],
     'version' => 'latest',
     'debug' => false
     ]);
@@ -38,7 +38,7 @@ foreach ($logStreams as $logStream) {
 
     _log('fetching ' . $logStream['logStreamName'] . ' events');
 
-    _recursiveGetLogEvents($cwlclient, $config['LogGroupName'], $logStream['logStreamName'], $events);
+    _recursiveGetLogEvents($cwlclient, $config['LogGroupName'], $logStream['logStreamName'], $config['StartTime'], $config['EndTime'], $events);
 
     _debug(count($events) . ' events');
 
@@ -82,13 +82,17 @@ function _recursiveDescribeLogStreams($client, $logGroupName, &$return, $nextTok
 }
 
 // _recursiveGetLogEvents($client, $logGroupName, $logStreamName, &$return, $nextToken);
-function _recursiveGetLogEvents($client, $logGroupName, $logStreamName, &$return, $nextToken = false)
+function _recursiveGetLogEvents($client, $logGroupName, $logStreamName, $startTime, $endTime, &$return, $nextToken = false)
 {
+    usleep(250000); // GetLogEvents is throttled to 5 request per second
+
     $req = [
         'logGroupName' => $logGroupName,
         'logStreamName' => $logStreamName,
         'startFromHead' => true,
-        'limit' => 1000, // TODO: remove
+        'startTime' => $startTime,
+        'endTime' => $endTime,
+        'limit' => 10000
         ];
 
     if ($nextToken) {
@@ -97,14 +101,17 @@ function _recursiveGetLogEvents($client, $logGroupName, $logStreamName, &$return
 
     $res = $client->getLogEvents($req);
 
+    $count = false;
+
     if ($res->hasKey('events')) {
+        $count = count($res->get('events'));
+
         foreach ($res->get('events') as $event) {
             $return[] = $event;
         }
     }
 
-    /* TODO: enable again
-    if ($res->hasKey('nextForwardToken')) {
-        _recursiveGetLogEvents($client, $logGroupName, $logStreamName, $return, $res->get('nextForwardToken'));
-    }*/
+    if ($res->hasKey('nextForwardToken') && ($count || !$nextToken)) {
+        _recursiveGetLogEvents($client, $logGroupName, $logStreamName, $startTime, $endTime, $return, $res->get('nextForwardToken'));
+    }
 }

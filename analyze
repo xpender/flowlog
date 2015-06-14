@@ -15,7 +15,7 @@ use Aws\Ec2\Exception\Ec2Exception;
 
 // init ec2 client
 $ec2client = new Ec2Client([
-    'region' => $config['region'],
+    'region' => $config['Region'],
     'version' => 'latest',
     'debug' => false
     ]);
