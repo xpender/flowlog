@@ -20,16 +20,23 @@ $ec2client = new Ec2Client([
     'debug' => false
     ]);
 
-// iterate over logStreams
+// logStreams
 $logStreams = json_decode(
     file_get_contents(PROJECT_ROOT . '/data/logStreams.json'),
     true
     );
 
-foreach (array_keys($logStreams) as $eni) {
-    _log('analyzing ' . $eni);
+// coollect needed data
+//list($instances, $eni2ips, $eni2instance, $ip2cluster) = unserialize(file_get_contents('x.dat'));
 
+$instances = [];
+$eni2ips = [];
+$eni2instance = [];
+$ip2cluster = [];
+
+foreach (array_keys($logStreams) as $eni) {
     $ips = [];
+    $instanceId = false;
 
     // describe interface
     try {
@@ -42,6 +49,7 @@ foreach (array_keys($logStreams) as $eni) {
         continue;
     }
 
+    // require networkinterfaces
     if ($res->hasKey('NetworkInterfaces')) {
         foreach ($res->get('NetworkInterfaces') as $iface) {
             foreach ($iface['PrivateIpAddresses'] as $prvip) {
@@ -53,13 +61,91 @@ foreach (array_keys($logStreams) as $eni) {
                     $ips[] = $prvip['Association']['PublicIp'];
                 }
             }
+
+            if (isset($iface['Attachment']) && isset($iface['Attachment']['InstanceId'])) {
+                $instanceId = $iface['Attachment']['InstanceId'];
+
+                break;
+            }
         }
     }
 
+    // have instanceId?
+    if (!$instanceId) continue;
+
+    // store..
+    $eni2ips[$eni] = $ips;
+    $eni2instance[$eni] = $instanceId;
+
+    // have instance or fetch?
+    if (!isset($instances[$instanceId])) {
+        try {
+            $res = $ec2client->describeInstances([
+                'InstanceIds' => array($instanceId)
+                ]);
+        } catch (Ec2Exception $e) {
+            // FIXME: Instace might be destroyed
+
+            continue;
+        }
+
+        // get interesting tags
+        $tags = [];
+
+        // xx
+        if ($res->hasKey('Reservations')) {
+            $reservations = $res->get('Reservations');
+
+            foreach ($reservations as $reservation) {
+                foreach ($reservation['Instances'] as $instance) {
+                    if (isset($instance['Tags'])) {
+                        foreach ($instance['Tags'] as $tag) {
+                            if ($tag['Key'] == 'Name') {
+                                $tags['name'] = $tag['Value'];
+                            } elseif ($tag['Key'] == 'Cluster') {
+                                $tags['cluster'] = $tag['Value'];
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        $instances[$instanceId] = [
+            'tags' => $tags
+            ];
+
+        $cluster = (isset($tags['cluster']) ? $tags['cluster'] : 'unknown');
+    } else {
+        $cluster = (isset($instances[$instanceId]['tags']['cluster']) ? $instances[$instanceId]['tags']['cluster'] : 'unknown');
+    }
+
+    // fill ip2cluster
+    foreach ($ips as $ip) {
+        $ip2cluster[$ip] = $cluster;
+    }
+}
+
+/*
+$data = array($instances, $eni2ips, $eni2instance, $ip2cluster);
+
+file_put_contents(
+    'x.dat',
+    serialize($data)
+    );
+*/
+
+foreach (array_keys($logStreams) as $eni) {
+    _log('analyzing ' . $eni);
+
+    if (!isset($eni2ips[$eni])) continue;
+
+    $ips = $eni2ips[$eni];
+
     // get events
-    $events = json_decode(
-        file_get_contents(PROJECT_ROOT . '/data/' . $eni . '.json'),
-        true
+    $fp = fopen(
+        PROJECT_ROOT . '/data/' . $eni . '.log',
+        'r'
         );
 
     $stats = [
@@ -69,11 +155,13 @@ foreach (array_keys($logStreams) as $eni) {
                 'total' => 0,
                 'port' => [],
                 'ip' => [],
+                'cluster' => [],
                 ],
             'rej' => [
                 'total' => 0,
                 'port' => [],
                 'ip' => [],
+                'cluster' => [],
                 ],
             ],
         'out' => [
@@ -82,11 +170,13 @@ foreach (array_keys($logStreams) as $eni) {
                 'total' => 0,
                 'port' => [],
                 'ip' => [],
+                'cluster' => [],
                 ],
             'rej' => [
                 'total' => 0,
                 'port' => [],
                 'ip' => [],
+                'cluster' => [],
                 ],
             ],
         'total' => [
@@ -95,17 +185,27 @@ foreach (array_keys($logStreams) as $eni) {
                 'total' => 0,
                 'port' => [],
                 'ip' => [],
+                'cluster' => [],
                 ],
             'rej' => [
                 'total' => 0,
                 'port' => [],
                 'ip' => [],
+                'cluster' => [],
                 ],
             ],
         ];
 
-    foreach ($events as $event) {
-        $x = explode(' ' , $event['message']);
+    while (!feof($fp)) {
+        $buffer = fgets($fp);
+
+        if (!$buffer) break;
+
+        $buffer = trim($buffer);
+
+        if (!strlen($buffer)) break;
+
+        $x = explode(' ', $buffer);
 
         if ($x[0] != 2) continue; // support flow log version 2 only
 
@@ -122,6 +222,10 @@ foreach (array_keys($logStreams) as $eni) {
             $ip = $srcaddr;
             $port = $srcport;
         }
+
+        $cluster = 'unknown';
+
+        if (isset($ip2cluster[$ip])) $cluster = $ip2cluster[$ip];
 
         $b = false;
 
@@ -140,6 +244,10 @@ foreach (array_keys($logStreams) as $eni) {
 
         $stats[$a][$b]['ip'][$ip] += $bytes;
 
+        if (!isset($stats[$a][$b]['cluster'][$cluster])) $stats[$a][$b]['cluster'][$cluster] = 0;
+
+        $stats[$a][$b]['cluster'][$cluster] += $bytes;
+
         // total
         $stats['total']['total'] += $bytes;
         $stats['total'][$b]['total'] += $bytes;
@@ -151,12 +259,22 @@ foreach (array_keys($logStreams) as $eni) {
         if (!isset($stats['total'][$b]['ip'][$ip])) $stats['total'][$b]['ip'][$ip] = 0;
 
         $stats['total'][$b]['ip'][$ip] += $bytes;
+
+        if (!isset($stats['total'][$b]['cluster'][$cluster])) $stats['total'][$b]['cluster'][$cluster] = 0;
+
+        $stats['total'][$b]['cluster'][$cluster] += $bytes;
     }
 
     file_put_contents(
         PROJECT_ROOT . '/data/' . $eni . '.stats.json',
-        json_encode($stats)
+        json_encode([
+            'instanceId' => $eni2instance[$eni],
+            'tags' => $instances[$eni2instance[$eni]]['tags'],
+            'stats' => $stats
+            ])
         );
+
+    unset($stats);
 }
 
 // _log
