@@ -31,7 +31,7 @@ foreach (array_keys($logStreams) as $eni) {
 
     $ips = [];
 
-    // describe addresses
+    // describe interface
     try {
         $res = $ec2client->describeNetworkInterfaces([
             'NetworkInterfaceIds' => [substr($eni, 0, 12)]
