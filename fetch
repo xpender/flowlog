@@ -70,6 +70,8 @@ function _recursiveDescribeLogStreams($client, $logGroupName, &$return, $nextTok
 
     if ($res->hasKey('logStreams')) {
         foreach ($res->get('logStreams') as $entry) {
+            if (!preg_match('/^eni-[a-z0-9]{8}-all$/', $entry['logStreamName'])) continue;
+
             $return[$entry['logStreamName']] = $entry;
         }
     }
