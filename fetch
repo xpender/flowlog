@@ -1,0 +1,108 @@
+#!/usr/bin/env php
+<?php
+// PROJECT_ROOT
+define('PROJECT_ROOT', realpath(__DIR__));
+
+// composer
+require PROJECT_ROOT . '/vendor/autoload.php';
+
+// config
+require PROJECT_ROOT . '/config.php';
+
+// uses
+use Aws\CloudWatch\CloudWatchClient;
+use Aws\CloudWatchLogs\CloudWatchLogsClient;
+
+// init cloudwatch client
+$client = new CloudWatchLogsClient([
+    'region' => $config['region'],
+    'version' => 'latest',
+    'debug' => false
+    ]);
+
+// describe log streams
+$logStreams = [];
+
+_log('fetching logstreams');
+
+_recursiveDescribeLogStreams($client, $config['LogGroupName'], $logStreams);
+
+_debug(count($logStreams) . ' logstreams');
+
+// write..
+file_put_contents(PROJECT_ROOT . '/data/logStreams.json', json_encode($logStreams));
+
+// fetch events..
+foreach ($logStreams as $logStream) {
+    $events = [];
+
+    _log('fetching ' . $logStream['logStreamName'] . ' events');
+
+    _recursiveGetLogEvents($client, $config['LogGroupName'], $logStream['logStreamName'], $events);
+
+    _debug(count($events) . ' events');
+
+    file_put_contents(PROJECT_ROOT . '/data/' . $logStream['logStreamName'] . '.json', json_encode($events));
+}
+
+// _log
+function _log($msg)
+{
+    echo '[?] ' . $msg . "\n";
+}
+
+// _debug
+function _debug($msg)
+{
+    echo '[#] ' . $msg . "\n";
+}
+
+// _recursiveDescribeLogStreams($client, $logGroupName, &$return, $nextToken);
+function _recursiveDescribeLogStreams($client, $logGroupName, &$return, $nextToken = false)
+{
+    $req = ['logGroupName' => $logGroupName];
+
+    if ($nextToken) {
+        $req['nextToken'] = $nextToken;
+    }
+
+    $res = $client->describeLogStreams($req);
+
+    if ($res->hasKey('logStreams')) {
+        foreach ($res->get('logStreams') as $entry) {
+            $return[$entry['logStreamName']] = $entry;
+        }
+    }
+
+    if ($res->hasKey('nextToken')) {
+        _recursiveDescribeLogStreams($client, $logGroupName, $return, $res->get('nextToken'));
+    }
+}
+
+// _recursiveGetLogEvents($client, $logGroupName, $logStreamName, &$return, $nextToken);
+function _recursiveGetLogEvents($client, $logGroupName, $logStreamName, &$return, $nextToken = false)
+{
+    $req = [
+        'logGroupName' => $logGroupName,
+        'logStreamName' => $logStreamName,
+        'startFromHead' => true,
+        'limit' => 1000, // TODO: remove
+        ];
+
+    if ($nextToken) {
+        $req['nextToken'] = $nextToken;
+    }
+
+    $res = $client->getLogEvents($req);
+
+    if ($res->hasKey('events')) {
+        foreach ($res->get('events') as $event) {
+            $return[] = $event;
+        }
+    }
+
+    /* TODO: enable again
+    if ($res->hasKey('nextForwardToken')) {
+        _recursiveGetLogEvents($client, $logGroupName, $logStreamName, $return, $res->get('nextForwardToken'));
+    }*/
+}
