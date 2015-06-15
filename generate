@@ -9,6 +9,9 @@ require PROJECT_ROOT . '/vendor/autoload.php';
 // config
 require PROJECT_ROOT . '/config.php';
 
+// jpgraph
+JpGraph\JpGraph::module('pie');
+
 // contains all data for generating HTML
 $instances = [];
 $clusters = [];
@@ -117,11 +120,14 @@ $o .= '<div class="container-fluid">' . $n;
 $o .= '<div class="row">' . $n;
 
     // OVERALL
-    $o .= '<div class="col-md-3">' . $n;
+    $o .= '<div class="col-md-6">' . $n;
 
     $o .= '<div class="panel panel-default">' . $n;
 
     $o .= '<div class="panel-heading"><h3 class="panel-title">Overall</h3></div>' . $n;
+
+    $o .= '<div class="row">' . $n;
+    $o .= '<div class="col-md-6">' . $n;
 
     # accept/rej
     $o .= _generate_acc_rej($overall);
@@ -130,6 +136,15 @@ $o .= '<div class="row">' . $n;
 
     # cluster
     $o .= _generate_cluster($overall);
+
+    $o .= '</div>' . $n;
+    $o .= '<div class="col-md-6">' . $n;
+
+    $o .= _pie_in_out($overall);
+
+    $o .= _pie_cluster($overall);
+
+    $o .= '</div>' . $n;
 
     $o .= '</div>' . $n;
     $o .= '</div>' . $n;
@@ -400,6 +415,58 @@ function _generate_cluster($data)
     $o .= '</div>' . $n;
 
     return $o;
+}
+// _pie_in_out($data);
+function _pie_in_out($data)
+{
+    $legend = ['in', 'out'];
+    $values = [$data['stats']['in']['sum'], $data['stats']['out']['sum']];
+
+    $graph = new PieGraph(400, 350);
+    $graph->title->Set('IN/OUT');
+    $graph->setBox(true);
+
+    $plot = new PiePlot($values);
+    $plot->SetLegends($legend);
+
+    $graph->Add($plot);
+
+    ob_start();
+    $graph->Stroke();
+
+    $raw = ob_get_contents();
+    ob_end_clean();
+
+    return '<img src="data:image/jpeg;base64,' . base64_encode($raw) . '" />';
+}
+
+// _pie_cluster($data);
+function _pie_cluster($data)
+{
+    $legend = [];
+    $values = [];
+
+    foreach ($data['stats']['total']['cluster'] as $k => $v) {
+        $legend[] = $k;
+        $values[] = $v;
+    }
+
+    $graph = new PieGraph(400, 350);
+    $graph->title->Set('CLUSTER');
+    $graph->setBox(true);
+
+    $plot = new PiePlot($values);
+    $plot->SetLegends($legend);
+
+    $graph->Add($plot);
+
+    ob_start();
+    $graph->Stroke();
+
+    $raw = ob_get_contents();
+    ob_end_clean();
+
+    return '<img src="data:image/jpeg;base64,' . base64_encode($raw) . '" />';
 }
 
 // _log
