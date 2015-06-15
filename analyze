@@ -150,49 +150,25 @@ foreach (array_keys($logStreams) as $eni) {
 
     $stats = [
         'in' => [
-            'total' => 0,
-            'acc' => [
-                'total' => 0,
-                'port' => [],
-                'ip' => [],
-                'cluster' => [],
-                ],
-            'rej' => [
-                'total' => 0,
-                'port' => [],
-                'ip' => [],
-                'cluster' => [],
-                ],
+            'sum' => 0,
+            'acc' => 0,
+            'rej' => 0,
+            'cluster' => [],
+            'ip' => [],
             ],
         'out' => [
-            'total' => 0,
-            'acc' => [
-                'total' => 0,
-                'port' => [],
-                'ip' => [],
-                'cluster' => [],
-                ],
-            'rej' => [
-                'total' => 0,
-                'port' => [],
-                'ip' => [],
-                'cluster' => [],
-                ],
+            'sum' => 0,
+            'acc' => 0,
+            'rej' => 0,
+            'cluster' => [],
+            'ip' => [],
             ],
         'total' => [
-            'total' => 0,
-            'acc' => [
-                'total' => 0,
-                'port' => [],
-                'ip' => [],
-                'cluster' => [],
-                ],
-            'rej' => [
-                'total' => 0,
-                'port' => [],
-                'ip' => [],
-                'cluster' => [],
-                ],
+            'sum' => 0,
+            'acc' => 0,
+            'rej' => 0,
+            'cluster' => [],
+            'ip' => [],
             ],
         ];
 
@@ -233,36 +209,24 @@ foreach (array_keys($logStreams) as $eni) {
         else $b = 'rej';
 
         // in || out
-        $stats[$a]['total'] += $bytes;
-        $stats[$a][$b]['total'] += $bytes;
+        $stats[$a]['sum'] += $bytes;
+        $stats[$a][$b] += $bytes;
 
-        if (!isset($stats[$a][$b]['port'][$port])) $stats[$a][$b]['port'][$port] = 0;
+        if (!isset($stats[$a]['cluster'][$cluster])) $stats[$a]['cluster'][$cluster] = 0;
+        $stats[$a]['cluster'][$cluster] += $bytes;
 
-        $stats[$a][$b]['port'][$port] += $bytes;
-
-        if (!isset($stats[$a][$b]['ip'][$ip])) $stats[$a][$b]['ip'][$ip] = 0;
-
-        $stats[$a][$b]['ip'][$ip] += $bytes;
-
-        if (!isset($stats[$a][$b]['cluster'][$cluster])) $stats[$a][$b]['cluster'][$cluster] = 0;
-
-        $stats[$a][$b]['cluster'][$cluster] += $bytes;
+        if (!isset($stats[$a]['ip'][$ip])) $stats[$a]['ip'][$ip] = 0;
+        $stats[$a]['ip'][$ip] += $bytes;
 
         // total
-        $stats['total']['total'] += $bytes;
-        $stats['total'][$b]['total'] += $bytes;
+        $stats['total']['sum'] += $bytes;
+        $stats['total'][$b] += $bytes;
 
-        if (!isset($stats['total'][$b]['port'][$port])) $stats['total'][$b]['port'][$port] = 0;
+        if (!isset($stats['total']['cluster'][$cluster])) $stats['total']['cluster'][$cluster] = 0;
+        $stats['total']['cluster'][$cluster] += $bytes;
 
-        $stats['total'][$b]['port'][$port] += $bytes;
-
-        if (!isset($stats['total'][$b]['ip'][$ip])) $stats['total'][$b]['ip'][$ip] = 0;
-
-        $stats['total'][$b]['ip'][$ip] += $bytes;
-
-        if (!isset($stats['total'][$b]['cluster'][$cluster])) $stats['total'][$b]['cluster'][$cluster] = 0;
-
-        $stats['total'][$b]['cluster'][$cluster] += $bytes;
+        if (!isset($stats['total']['ip'][$ip])) $stats['total']['ip'][$ip] = 0;
+        $stats['total']['ip'][$ip] += $bytes;
     }
 
     file_put_contents(
