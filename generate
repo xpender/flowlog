@@ -12,7 +12,7 @@ require PROJECT_ROOT . '/config.php';
 // contains all data for generating HTML
 $instances = [];
 $clusters = [];
-$total = [];
+$overall = [];
 
 // iterate over logStreams
 $logStreams = json_decode(
@@ -58,11 +58,11 @@ foreach (array_keys($logStreams) as $eni) {
             );
     }
 
-    if (!isset($total['stats'])) {
-        $total['stats'] = $x['stats'];
+    if (!isset($overall['stats'])) {
+        $overall['stats'] = $x['stats'];
     } else {
-        $total['stats'] = _array_merge_sum(
-            $total['stats'],
+        $overall['stats'] = _array_merge_sum(
+            $overall['stats'],
             $x['stats']
             );
     }
@@ -94,7 +94,8 @@ $header .= '</div>' . $n;
 
 $header .= '<div><ul class="nav navbar-nav">' . $n;
 
-$header .= '<li><a href="index.html">Clusters</a></li>' . $n;
+$header .= '<li><a href="index.html">Overview</a></li>' . $n;
+$header .= '<li><a href="clusters.html">Clusters</a></li>' . $n;
 $header .= '<li><a href="instances.html">Instances</a></li>' . $n;
 
 $header .= '</ul></div>' . $n;
@@ -107,6 +108,43 @@ $footer .= '</body>' . $n;
 $footer .= '</html>' . $n;
 
 ###################### OVERVIEW
+
+// HTML
+$o  = '';
+$o .= $header;
+
+$o .= '<div class="container-fluid">' . $n;
+$o .= '<div class="row">' . $n;
+
+    // OVERALL
+    $o .= '<div class="col-md-3">' . $n;
+
+    $o .= '<div class="panel panel-default">' . $n;
+
+    $o .= '<div class="panel-heading"><h3 class="panel-title">Overall</h3></div>' . $n;
+
+    # accept/rej
+    $o .= _generate_acc_rej($overall);
+
+    $o .= '<br>' . $n;
+
+    # cluster
+    $o .= _generate_cluster($overall);
+
+    $o .= '</div>' . $n;
+    $o .= '</div>' . $n;
+
+$o .= '</div>' . $n;
+$o .= '</div>' . $n;
+
+$o .= $footer;
+
+file_put_contents(
+    PROJECT_ROOT . '/out/index.html',
+    $o
+    );
+
+###################### CLUSTERS
 
 // sort via cluster
 uasort(
@@ -135,9 +173,9 @@ foreach ($clusters as $cluster => $data) {
     $i++;
 
     $o .= '<div class="col-md-3">' . $n;
-
     $o .= '<div class="panel panel-default">' . $n;
 
+    # title
     $o .= '<div class="panel-heading"><h3 class="panel-title">' . $cluster . '</h3></div>' . $n;
 
     # accept/rej
@@ -158,7 +196,7 @@ $o .= '</div>' . $n;
 $o .= $footer;
 
 file_put_contents(
-    PROJECT_ROOT . '/out/index.html',
+    PROJECT_ROOT . '/out/clusters.html',
     $o
     );
 
