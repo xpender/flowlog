@@ -1,4 +1,6 @@
-Initial try to provide scripts to get maybe useful data out of AWS VPC Flow Logs.
+Initial try to provide scripts to get (maybe) useful data out of AWS VPC Flow Logs.
+
+Do not expect good code - and there might be better solutions for this.
 
 https://aws.amazon.com/blogs/aws/vpc-flow-logs-log-and-view-network-traffic-flows/
 
@@ -17,8 +19,6 @@ https://aws.amazon.com/blogs/aws/vpc-flow-logs-log-and-view-network-traffic-flow
 * Fetching logs can take long time
   * Use StartTime & EndTime Limitation in `config.php`
   * Enable Flow Logging only for a short period
-
-## Instance tags ##
-
-* Name = used as instance display name
-* Cluster = used to group instances (cluster in meaning of a mongo replicaset, webserver pool etc.)
+* Define instance tags (currently static)
+  * Name = used as instance display name
+  * Cluster = used to group instances (cluster in meaning of a mongo replicaset, webserver pool etc.)
