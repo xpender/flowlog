@@ -95,9 +95,15 @@ function _recursiveGetLogEvents($client, $logGroupName, $logStreamName, $startTi
         'logGroupName' => $logGroupName,
         'logStreamName' => $logStreamName,
         'startFromHead' => true,
-        'startTime' => $startTime,
-        'endTime' => $endTime,
         ];
+
+    if ($startTime) {
+        $req['startTime'] = $startTime;
+    }
+
+    if ($endTime) {
+        $req['endTime'] = $endTime;
+    }
 
     if ($nextToken) {
         $req['nextToken'] = $nextToken;
