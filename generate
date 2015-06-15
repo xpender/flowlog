@@ -144,6 +144,8 @@ file_put_contents(
     $o
     );
 
+_log('OVERVIEW HTML written');
+
 ###################### CLUSTERS
 
 // sort via cluster
@@ -200,6 +202,8 @@ file_put_contents(
     $o
     );
 
+_log('CLUSTERS HTML written');
+
 ###################### INSTANCES
 
 // sort via name
@@ -255,6 +259,8 @@ file_put_contents(
     PROJECT_ROOT . '/out/instances.html',
     $o
     );
+
+_log('INSTANCES HTML written');
 
 // _format_bytes($bytes, $precision);
 function _format_bytes($size, $precision = 2)
@@ -394,4 +400,10 @@ function _generate_cluster($data)
     $o .= '</div>' . $n;
 
     return $o;
+}
+
+// _log
+function _log($msg)
+{
+    echo '[?] ' . $msg . "\n";
 }
