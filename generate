@@ -10,7 +10,8 @@ require PROJECT_ROOT . '/vendor/autoload.php';
 require PROJECT_ROOT . '/config.php';
 
 // contains all data for generating HTML
-$data = [];
+$instances = [];
+$clusters = [];
 
 // iterate over logStreams
 $logStreams = json_decode(
@@ -24,123 +25,191 @@ foreach (array_keys($logStreams) as $eni) {
 
     $x = json_decode(file_get_contents(PROJECT_ROOT . '/data/' . $eni . '.stats.json'), true);
 
+    // some stuff
+    $instanceId = $x['instanceId'];
+    $name = (isset($x['tags']['name']) ? $x['tags']['name'] : $instanceId);
+    $cluster = (isset($x['tags']['cluster']) ? $x['tags']['cluster'] : 'unknown');
+
     // store..
-    if (!isset($data[$x['instanceId']])) {
-        $data[$x['instanceId']] = $x;
+    if (!isset($instances[$instanceId])) {
+        $instances[$instanceId] = [
+            'instanceId' => $instanceId,
+            'name' => $name,
+            'cluster' => $cluster,
+            'stats' => $x['stats']
+            ];
     } else {
-        // TODO: merge into existing entry, we currently only have one interface per instance, so not needed for us
+        $instances[$instanceId]['stats'] = _array_merge_sum(
+            $instances[$instanceId]['stats'],
+            $x['stats']
+            );
+    }
+
+    if (!isset($clusters[$cluster])) {
+        $clusters[$cluster] = [
+            'cluster' => $cluster,
+            'stats' => $x['stats'],
+            ];
+    } else {
+        $clusters[$cluster]['stats'] = _array_merge_sum(
+            $clusters[$cluster]['stats'],
+            $x['stats']
+            );
     }
 }
 
-//file_put_contents('x.json', json_encode($data));
-
-// sort via cluser & name
-uasort(
-    $data,
-    function ($a, $b) {
-        $s1 = (isset($a['tags']['cluster']) ? $a['tags']['cluster'] : 'z') . ' :: ';
-        $s1 .= (isset($a['tags']['name']) ? $a['tags']['name'] : $a['instanceId']);
-
-        $s2 = (isset($b['tags']['cluster']) ? $b['tags']['cluster'] : 'z') . ' :: ';
-        $s2 .= (isset($b['tags']['name']) ? $b['tags']['name'] : $b['instanceId']);
-
-        return strcmp($s1, $s2);
-    });
-
+// helper
 $n = "\n"; $t = '  '; $tt = $t . $t; $ttt = $tt . $t; $tttt = $tt . $tt;
 
+###################### HEADER
+$header  = '';
+$header .= '<!DOCTYPE html>' . $n;
+$header .= '<html lang="en">' . $n;
+$header .= '<head>' . $n;
+$header .= $t . '<title>flowlog</title>' . $n;
+$header .= $t . '<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">' . $n;
+$header .= $t . '<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap-theme.min.css">' . $n;
+$header .= $t . '<style>' . $n;
+
+$header .= $t . '</style>' . $n;
+$header .= '</head>' . $n;
+$header .= '<body>' . $n;
+
+$header .= '<nav class="navbar navbar-default">' . $n;
+$header .= '<div class="container-fluid">' . $n;
+
+$header .= '<div class="navbar-header">' . $n;
+$header .= '<a class="navbar-brand" href="#">flowlog</a>' . $n;
+$header .= '</div>' . $n;
+
+$header .= '<div><ul class="nav navbar-nav">' . $n;
+
+$header .= '<li><a href="index.html">Clusters</a></li>' . $n;
+$header .= '<li><a href="instances.html">Instances</a></li>' . $n;
+
+$header .= '</ul></div>' . $n;
+
+$header .= '</nav>' . $n;
+
+###################### FOOTER
+$footer  = '';
+$footer .= '</body>' . $n;
+$footer .= '</html>' . $n;
+
+###################### OVERVIEW
+
+// sort via cluster
+uasort(
+    $clusters,
+    function ($a, $b) {
+        return strcmp($a['cluster'], $b['cluster']);
+    });
+
+// HTML
 $o  = '';
-$o .= '<!doctype html>' . $n;
-$o .= '<html>' . $n;
-$o .= '<head>' . $n;
-$o .= $t . '<title>flowlog</title>' . $n;
-$o .= '</head>' . $n;
-$o .= '<body>' . $n;
+$o .= $header;
 
-foreach ($data as $instance) {
-    $title  = (isset($instance['tags']['cluster']) ? $instance['tags']['cluster'] : 'unknown') . ' :: ';
-    $title .= (isset($instance['tags']['name']) ? $instance['tags']['name'] : $instance['instanceId']);
+$o .= '<div class="container-fluid">' . $n;
+$o .= '<div class="row">' . $n;
 
-    $o .= '<h1>' . $title . '</h1>' . $n;
+$i = 0;
 
-    // totals
-    $o .= '<table border="1">' . $n;
+foreach ($clusters as $cluster => $data) {
+    if ($i == 4) {
+        $o .= '</div>' . $n;
+        $o .= '<div class="row">' . $n;
 
-    // head
+        $i = 0;
+    }
+
+    $i++;
+
+    $o .= '<div class="col-md-3">' . $n;
+
+    $o .= '<div class="panel panel-default">' . $n;
+
+    $o .= '<div class="panel-heading"><h3 class="panel-title">' . $cluster . '</h3></div>' . $n;
+
+    # totals
+    $o .= '<table class="table">' . $n;
+
+    # head
     $o .= '<thead>' . $n;
     $o .= $t . '<tr>' . $n;
-    $o .= $tt . '<th></th>' . $n;
-    $o .= $tt . '<th>IN</th>' . $n;
-    $o .= $tt . '<th>OUT</th>' . $n;
-    $o .= $tt . '<th>SUM</th>' . $n;
+    $o .= $tt . '<th class="col-md-3"></th>' . $n;
+    $o .= $tt . '<th class="col-md-3">IN</th>' . $n;
+    $o .= $tt . '<th class="col-md-3">OUT</th>' . $n;
+    $o .= $tt . '<th class="col-md-3">SUM</th>' . $n;
     $o .= $t . '</tr>' . $n;
     $o .= '</thead>' . $n;
 
-    // body
+    # body
     $o .= '<tbody>' . $n;
 
-    // accept
+    # accept
     $o .= $t . '<tr>' . $n;
     $o .= $tt . '<th>ACCEPT</th>' . $n;
-    $o .= $tt . '<td>' . _format_bytes($instance['stats']['in']['acc']) . '</td>' . $n;
-    $o .= $tt . '<td>' . _format_bytes($instance['stats']['out']['acc']) . '</td>' . $n;
-    $o .= $tt . '<td>' . _format_bytes($instance['stats']['total']['acc']) . '</td>' . $n;
+    $o .= $tt . '<td>' . _format_bytes($data['stats']['in']['acc']) . '</td>' . $n;
+    $o .= $tt . '<td>' . _format_bytes($data['stats']['out']['acc']) . '</td>' . $n;
+    $o .= $tt . '<td>' . _format_bytes($data['stats']['total']['acc']) . '</td>' . $n;
     $o .= $t . '</tr>' . $n;
 
-    // reject
+    # reject
     $o .= $t . '<tr>' . $n;
     $o .= $tt . '<th>REJECT</th>' . $n;
-    $o .= $tt . '<td>' . _format_bytes($instance['stats']['in']['rej']) . '</td>' . $n;
-    $o .= $tt . '<td>' . _format_bytes($instance['stats']['out']['rej']) . '</td>' . $n;
-    $o .= $tt . '<td>' . _format_bytes($instance['stats']['total']['rej']) . '</td>' . $n;
+    $o .= $tt . '<td>' . _format_bytes($data['stats']['in']['rej']) . '</td>' . $n;
+    $o .= $tt . '<td>' . _format_bytes($data['stats']['out']['rej']) . '</td>' . $n;
+    $o .= $tt . '<td>' . _format_bytes($data['stats']['total']['rej']) . '</td>' . $n;
     $o .= $t . '</tr>' . $n;
 
-    // total
+    # total
     $o .= $t . '<tr>' . $n;
     $o .= $tt . '<th>TOTAL</th>' . $n;
-    $o .= $tt . '<td>' . _format_bytes($instance['stats']['in']['sum']) . '</td>' . $n;
-    $o .= $tt . '<td>' . _format_bytes($instance['stats']['out']['sum']) . '</td>' . $n;
-    $o .= $tt . '<td>' . _format_bytes($instance['stats']['total']['sum']) . '</td>' . $n;
+    $o .= $tt . '<td>' . _format_bytes($data['stats']['in']['sum']) . '</td>' . $n;
+    $o .= $tt . '<td>' . _format_bytes($data['stats']['out']['sum']) . '</td>' . $n;
+    $o .= $tt . '<td>' . _format_bytes($data['stats']['total']['sum']) . '</td>' . $n;
     $o .= $t . '</tr>' . $n;
 
+    # foot
     $o .= '</tbody>' . $n;
-
     $o .= '</table>' . $n;
 
     $o .= '<br>' . $n;
 
-    // cluster
-    $o .= '<table border="1">' . $n;
+    # cluster
+    $o .= '<div style="height: 350px; overflow: auto; margin-bottom: 20px;">' . $n;
 
-    // head
+    $o .= '<table class="table header-fixed" style="margin-bottom: 20px;">' . $n;
+
+    # head
     $o .= '<thead>' . $n;
     $o .= $t . '<tr>' . $n;
-    $o .= $tt . '<th></th>' . $n;
-    $o .= $tt . '<th>IN</th>' . $n;
-    $o .= $tt . '<th>OUT</th>' . $n;
-    $o .= $tt . '<th>SUM</th>' . $n;
+    $o .= $tt . '<th class="col-md-3"></th>' . $n;
+    $o .= $tt . '<th class="col-md-3">IN</th>' . $n;
+    $o .= $tt . '<th class="col-md-3">OUT</th>' . $n;
+    $o .= $tt . '<th class="col-md-3">SUM</th>' . $n;
     $o .= $t . '</tr>' . $n;
     $o .= '</thead>' . $n;
 
-    // clusters
-    $clusters = array_keys($instance['stats']['total']['cluster']);
+    # clusters
+    $x_clusters = array_keys($data['stats']['total']['cluster']);
 
-    // body
+    # body
     $o .= '<tbody>' . $n;
 
-    // iterate..
-    foreach ($clusters as $cluster) {
+    # iterate..
+    foreach ($x_clusters as $x_cluster) {
         $o .= $t . '<tr>' . $n;
 
-        $o .= $tt . '<th>' . $cluster . '</th>' . $n;
+        $o .= $tt . '<th>' . $x_cluster . '</th>' . $n;
 
         $in = 0;
-        if (isset($instance['stats']['in']['cluster'][$cluster])) $in += $instance['stats']['in']['cluster'][$cluster];
+        if (isset($data['stats']['in']['cluster'][$x_cluster])) $in += $data['stats']['in']['cluster'][$x_cluster];
 
         $o .= $tt . '<td>' . _format_bytes($in) . '</td>' . $n;
 
         $out = 0;
-        if (isset($instance['stats']['out']['cluster'][$cluster])) $out += $instance['stats']['out']['cluster'][$cluster];
+        if (isset($data['stats']['out']['cluster'][$x_cluster])) $out += $data['stats']['out']['cluster'][$x_cluster];
 
         $o .= $tt . '<td>' . _format_bytes($out) . '</td>' . $n;
 
@@ -149,17 +218,168 @@ foreach ($data as $instance) {
         $o .= $t . '</tr>' . $n;
     }
 
-    // foot
+    # foot
     $o .= '</tbody>' . $n;
-
     $o .= '</table>' . $n;
+
+    $o .= '</div>' . $n;
+
+    $o .= '</div>' . $n;
+
+    $o .= '</div>' . $n;
 }
 
-$o .= '</body>' . $n;
-$o .= '</html>' . $n;
+$o .= '</div>' . $n;
+$o .= '</div>' . $n;
+
+$o .= $footer;
 
 file_put_contents(
     PROJECT_ROOT . '/out/index.html',
+    $o
+    );
+
+###################### INSTANCES
+
+// sort via name
+uasort(
+    $instances,
+    function ($a, $b) {
+        return strcmp($a['name'], $b['name']);
+    });
+
+// HTML
+$o  = '';
+$o .= $header;
+
+$o .= '<div class="container-fluid">' . $n;
+$o .= '<div class="row">' . $n;
+
+$i = 0;
+
+foreach ($instances as $instanceId => $data) {
+    if ($i == 4) {
+        $o .= '</div>' . $n;
+        $o .= '<div class="row">' . $n;
+
+        $i = 0;
+    }
+
+    $i++;
+
+    $o .= '<div class="col-md-3">' . $n;
+
+    $o .= '<div class="panel panel-default">' . $n;
+
+    $o .= '<div class="panel-heading"><h3 class="panel-title">' . $data['cluster'] . ' :: ' . $data['name'] . '</h3></div>' . $n;
+
+    # totals
+    $o .= '<table class="table">' . $n;
+
+    # head
+    $o .= '<thead>' . $n;
+    $o .= $t . '<tr>' . $n;
+    $o .= $tt . '<th class="col-md-3"></th>' . $n;
+    $o .= $tt . '<th class="col-md-3">IN</th>' . $n;
+    $o .= $tt . '<th class="col-md-3">OUT</th>' . $n;
+    $o .= $tt . '<th class="col-md-3">SUM</th>' . $n;
+    $o .= $t . '</tr>' . $n;
+    $o .= '</thead>' . $n;
+
+    # body
+    $o .= '<tbody>' . $n;
+
+    # accept
+    $o .= $t . '<tr>' . $n;
+    $o .= $tt . '<th>ACCEPT</th>' . $n;
+    $o .= $tt . '<td>' . _format_bytes($data['stats']['in']['acc']) . '</td>' . $n;
+    $o .= $tt . '<td>' . _format_bytes($data['stats']['out']['acc']) . '</td>' . $n;
+    $o .= $tt . '<td>' . _format_bytes($data['stats']['total']['acc']) . '</td>' . $n;
+    $o .= $t . '</tr>' . $n;
+
+    # reject
+    $o .= $t . '<tr>' . $n;
+    $o .= $tt . '<th>REJECT</th>' . $n;
+    $o .= $tt . '<td>' . _format_bytes($data['stats']['in']['rej']) . '</td>' . $n;
+    $o .= $tt . '<td>' . _format_bytes($data['stats']['out']['rej']) . '</td>' . $n;
+    $o .= $tt . '<td>' . _format_bytes($data['stats']['total']['rej']) . '</td>' . $n;
+    $o .= $t . '</tr>' . $n;
+
+    # total
+    $o .= $t . '<tr>' . $n;
+    $o .= $tt . '<th>TOTAL</th>' . $n;
+    $o .= $tt . '<td>' . _format_bytes($data['stats']['in']['sum']) . '</td>' . $n;
+    $o .= $tt . '<td>' . _format_bytes($data['stats']['out']['sum']) . '</td>' . $n;
+    $o .= $tt . '<td>' . _format_bytes($data['stats']['total']['sum']) . '</td>' . $n;
+    $o .= $t . '</tr>' . $n;
+
+    $o .= '</tbody>' . $n;
+
+    $o .= '</table>' . $n;
+
+    $o .= '<br>' . $n;
+
+    # cluster
+    $o .= '<div style="height: 350px; overflow: auto; margin-bottom: 20px;">' . $n;
+
+    $o .= '<table class="table header-fixed" style="margin-bottom: 20px;">' . $n;
+
+    # head
+    $o .= '<thead>' . $n;
+    $o .= $t . '<tr>' . $n;
+    $o .= $tt . '<th class="col-md-3"></th>' . $n;
+    $o .= $tt . '<th class="col-md-3">IN</th>' . $n;
+    $o .= $tt . '<th class="col-md-3">OUT</th>' . $n;
+    $o .= $tt . '<th class="col-md-3">SUM</th>' . $n;
+    $o .= $t . '</tr>' . $n;
+    $o .= '</thead>' . $n;
+
+    # clusters
+    $clusters = array_keys($data['stats']['total']['cluster']);
+
+    # body
+    $o .= '<tbody>' . $n;
+
+    # iterate..
+    foreach ($clusters as $cluster) {
+        $o .= $t . '<tr>' . $n;
+
+        $o .= $tt . '<th>' . $cluster . '</th>' . $n;
+
+        $in = 0;
+        if (isset($data['stats']['in']['cluster'][$cluster])) $in += $data['stats']['in']['cluster'][$cluster];
+
+        $o .= $tt . '<td>' . _format_bytes($in) . '</td>' . $n;
+
+        $out = 0;
+        if (isset($data['stats']['out']['cluster'][$cluster])) $out += $data['stats']['out']['cluster'][$cluster];
+
+        $o .= $tt . '<td>' . _format_bytes($out) . '</td>' . $n;
+
+        $o .= $tt . '<td>' . _format_bytes($in + $out) . '</td>' . $n;
+
+        $o .= $t . '</tr>' . $n;
+    }
+
+    # foot
+    $o .= '</tbody>' . $n;
+
+    $o .= '</table>' . $n;
+
+    $o .= '</div>' . $n;
+
+    $o .= '</div>' . $n;
+
+    $o .= '</div>' . $n;
+}
+
+$o .= '</div>' . $n;
+$o .= '</div>' . $n;
+
+$o .= $footer;
+
+file_put_contents(
+    PROJECT_ROOT . '/out/instances.html',
     $o
     );
 
@@ -172,4 +392,22 @@ function _format_bytes($size, $precision = 2)
     $suffixes = array('', 'k', 'M', 'G', 'T');
 
     return round(pow(1024, $base - floor($base)), $precision) . $suffixes[floor($base)];
+}
+
+// _array_merge_sum($a, $b);
+function _array_merge_sum($a, $b)
+{
+    foreach ($b as $k => $v) {
+        if (isset($a[$k])) {
+            if (is_array($v)) {
+                $a[$k] = _array_merge_sum($a[$k], $v);
+            } else {
+                $a[$k] += $v;
+            }
+        } else {
+            $a[$k] = $v;
+        }
+    }
+
+    return $a;
 }
