@@ -146,6 +146,11 @@ $o .= '<div class="row">' . $n;
     $o .= '<div class="row">' . $n;
     $o .= '<div class="col-md-6">' . $n;
 
+    # dates
+    $o .= _generate_dates($overall);
+
+    $o .= '<br>' . $n;
+
     # accept/rej
     $o .= _generate_acc_rej($overall);
 
@@ -212,6 +217,11 @@ foreach ($clusters as $cluster => $data) {
     # title
     $o .= '<div class="panel-heading"><h3 class="panel-title">' . $cluster . '</h3></div>' . $n;
 
+    # dates
+    $o .= _generate_dates($data);
+
+    $o .= '<br>' . $n;
+
     # accept/rej
     $o .= _generate_acc_rej($data);
 
@@ -270,6 +280,11 @@ foreach ($instances as $instanceId => $data) {
 
     $o .= '<div class="panel-heading"><h3 class="panel-title">' . $data['cluster'] . ' :: ' . $data['name'] . '</h3></div>' . $n;
 
+    # dates
+    $o .= _generate_dates($data);
+
+    $o .= '<br>' . $n;
+
     # accept/rej
     $o .= _generate_acc_rej($data);
 
@@ -310,10 +325,24 @@ function _array_merge_sum($a, $b)
 {
     foreach ($b as $k => $v) {
         if (isset($a[$k])) {
-            if (is_array($v)) {
-                $a[$k] = _array_merge_sum($a[$k], $v);
+            if ($k == 'first') {
+                $x = $a[$k];
+
+                if ($b[$k] < $x) $x = $b[$k];
+
+                $a[$k] = $x;
+            } elseif($k == 'last') {
+                $x = $a[$k];
+
+                if ($b[$k] > $x) $x = $b[$k];
+
+                $a[$k] = $x;
             } else {
-                $a[$k] += $v;
+                if (is_array($v)) {
+                    $a[$k] = _array_merge_sum($a[$k], $v);
+                } else {
+                    $a[$k] += $v;
+                }
             }
         } else {
             $a[$k] = $v;
@@ -321,6 +350,32 @@ function _array_merge_sum($a, $b)
     }
 
     return $a;
+}
+
+// _generate_dates($data);
+function _generate_dates($data)
+{
+    global $n, $t, $tt;
+
+    $o = '';
+
+    $o .= '<table class="table">' . $n;
+
+    # first
+    $o .= '<tr>' . $n;
+    $o .= '<th class="col-md-4">First event</th>' . $n;
+    $o .= '<td>' . date('Y-m-d H:i:s', $data['stats']['first']) . '</td>' . $n;
+    $o .= '</tr>' . $n;
+
+    # last
+    $o .= '<tr>' . $n;
+    $o .= '<th class="col-md-4">Last event</th>' . $n;
+    $o .= '<td>' . date('Y-m-d H:i:s', $data['stats']['last']) . '</td>' . $n;
+    $o .= '</tr>' . $n;
+
+    $o .= '</table>' . $n;
+
+    return $o;
 }
 
 // _generate_acc_rej($data);

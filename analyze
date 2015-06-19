@@ -166,6 +166,8 @@ foreach (array_keys($logStreams) as $eni) {
         );
 
     $stats = [
+        'first' => 0,
+        'last' => 0,
         'in' => [
             'sum' => 0,
             'acc' => 0,
@@ -203,6 +205,12 @@ foreach (array_keys($logStreams) as $eni) {
         if ($x[0] != 2) continue; // support flow log version 2 only
 
         list($version, $accountid, $interfaceid, $srcaddr, $dstaddr, $srcport, $dstport, $protocol, $packets, $bytes, $start, $end, $action, $logstatus) = $x;
+
+        if ($stats['first'] == 0) $stats['first'] = $start;
+        if ($start < $stats['first']) $stats['first'] = $start;
+
+        if ($stats['last'] == 0) $stats['last'] = $end;
+        if ($end > $stats['last']) $stats['last'] = $end;
 
         $a = false; $ip = false; $port = false;
 
