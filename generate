@@ -491,6 +491,8 @@ function _generate_cluster($data)
     # clusters
     $x_clusters = array_keys($data['stats']['total']['cluster']);
 
+    sort($x_clusters);
+
     # body
     $o .= '<tbody>' . $n;
 
@@ -547,6 +549,8 @@ function _generate_az($data)
 
     # azs
     $x_azs = array_keys($data['stats']['total']['az']);
+
+    sort($x_azs);
 
     # body
     $o .= '<tbody>' . $n;
