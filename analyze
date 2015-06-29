@@ -44,12 +44,11 @@ $logStreams = json_decode(
     );
 
 // coollect needed data
-//list($instances, $eni2ips, $eni2instance, $ip2cluster) = unserialize(file_get_contents('x.dat'));
-
 $instances = [];
 $eni2ips = [];
 $eni2instance = [];
 $ip2cluster = [];
+$ip2az = [];
 
 foreach (array_keys($logStreams) as $eni) {
     $ips = [];
@@ -108,6 +107,7 @@ foreach (array_keys($logStreams) as $eni) {
 
         // get interesting tags
         $tags = [];
+        $az = 'unknown';
 
         // xx
         if ($res->hasKey('Reservations')) {
@@ -124,12 +124,17 @@ foreach (array_keys($logStreams) as $eni) {
                             }
                         }
                     }
+
+                    if (isset($instance['Placement']) && isset($instance['Placement']['AvailabilityZone'])) {
+                        $az = $instance['Placement']['AvailabilityZone'];
+                    }
                 }
             }
         }
 
         $instances[$instanceId] = [
-            'tags' => $tags
+            'tags' => $tags,
+            'az' => $az
             ];
 
         $cluster = (isset($tags['cluster']) ? $tags['cluster'] : 'unknown');
@@ -137,21 +142,14 @@ foreach (array_keys($logStreams) as $eni) {
         $cluster = (isset($instances[$instanceId]['tags']['cluster']) ? $instances[$instanceId]['tags']['cluster'] : 'unknown');
     }
 
-    // fill ip2cluster
+    // fill ip2cluster & ip2az
     foreach ($ips as $ip) {
         $ip2cluster[$ip] = $cluster;
+        $ip2az[$ip] = $az;
     }
 }
 
-/*
-$data = array($instances, $eni2ips, $eni2instance, $ip2cluster);
-
-file_put_contents(
-    'x.dat',
-    serialize($data)
-    );
-*/
-
+// anylze them
 foreach (array_keys($logStreams) as $eni) {
     _log('analyzing ' . $eni);
 
@@ -173,6 +171,7 @@ foreach (array_keys($logStreams) as $eni) {
             'acc' => 0,
             'rej' => 0,
             'cluster' => [],
+            'az' => [],
             'ip' => [],
             ],
         'out' => [
@@ -180,6 +179,7 @@ foreach (array_keys($logStreams) as $eni) {
             'acc' => 0,
             'rej' => 0,
             'cluster' => [],
+            'az' => [],
             'ip' => [],
             ],
         'total' => [
@@ -187,6 +187,7 @@ foreach (array_keys($logStreams) as $eni) {
             'acc' => 0,
             'rej' => 0,
             'cluster' => [],
+            'az' => [],
             'ip' => [],
             ],
         ];
@@ -225,8 +226,10 @@ foreach (array_keys($logStreams) as $eni) {
         }
 
         $cluster = 'unknown';
-
         if (isset($ip2cluster[$ip])) $cluster = $ip2cluster[$ip];
+
+        $az = 'unknown';
+        if (isset($ip2az[$ip])) $az = $ip2az[$ip];
 
         $b = false;
 
@@ -240,6 +243,9 @@ foreach (array_keys($logStreams) as $eni) {
         if (!isset($stats[$a]['cluster'][$cluster])) $stats[$a]['cluster'][$cluster] = 0;
         $stats[$a]['cluster'][$cluster] += $bytes;
 
+        if (!isset($stats[$a]['az'][$az])) $stats[$a]['az'][$az] = 0;
+        $stats[$a]['az'][$az] += $bytes;
+
         if (!isset($stats[$a]['ip'][$ip])) $stats[$a]['ip'][$ip] = 0;
         $stats[$a]['ip'][$ip] += $bytes;
 
@@ -250,6 +256,9 @@ foreach (array_keys($logStreams) as $eni) {
         if (!isset($stats['total']['cluster'][$cluster])) $stats['total']['cluster'][$cluster] = 0;
         $stats['total']['cluster'][$cluster] += $bytes;
 
+        if (!isset($stats['total']['az'][$az])) $stats['total']['az'][$az] = 0;
+        $stats['total']['az'][$az] += $bytes;
+
         if (!isset($stats['total']['ip'][$ip])) $stats['total']['ip'][$ip] = 0;
         $stats['total']['ip'][$ip] += $bytes;
     }
@@ -259,6 +268,7 @@ foreach (array_keys($logStreams) as $eni) {
         json_encode([
             'instanceId' => $eni2instance[$eni],
             'tags' => $instances[$eni2instance[$eni]]['tags'],
+            'az' => $instances[$eni2instance[$eni]]['az'],
             'stats' => $stats
             ])
         );

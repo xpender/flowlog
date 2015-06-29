@@ -38,6 +38,7 @@ JpGraph\JpGraph::module('pie');
 // contains all data for generating HTML
 $instances = [];
 $clusters = [];
+$azs = [];
 $overall = [];
 
 // iterate over logStreams
@@ -56,6 +57,7 @@ foreach (array_keys($logStreams) as $eni) {
     $instanceId = $x['instanceId'];
     $name = (isset($x['tags']['name']) ? $x['tags']['name'] : $instanceId);
     $cluster = (isset($x['tags']['cluster']) ? $x['tags']['cluster'] : 'unknown');
+    $az = $x['az'];
 
     // store..
     if (!isset($instances[$instanceId])) {
@@ -80,6 +82,18 @@ foreach (array_keys($logStreams) as $eni) {
     } else {
         $clusters[$cluster]['stats'] = _array_merge_sum(
             $clusters[$cluster]['stats'],
+            $x['stats']
+            );
+    }
+
+    if (!isset($azs[$az])) {
+        $azs[$az] = [
+            'az' => $az,
+            'stats' => $x['stats'],
+            ];
+    } else {
+        $azs[$az]['stats'] = _array_merge_sum(
+            $azs[$az]['stats'],
             $x['stats']
             );
     }
@@ -162,6 +176,11 @@ $o .= '<div class="row">' . $n;
 
     $o .= '<br>' . $n;
 
+    # az
+    $o .= _generate_az($overall);
+
+    $o .= '<br>' . $n;
+
     # cluster
     $o .= _generate_cluster($overall);
 
@@ -233,6 +252,11 @@ foreach ($clusters as $cluster => $data) {
 
     $o .= '<br>' . $n;
 
+    # az
+    $o .= _generate_az($data);
+
+    $o .= '<br>' . $n;
+
     # cluster
     $o .= _generate_cluster($data);
 
@@ -293,6 +317,11 @@ foreach ($instances as $instanceId => $data) {
 
     # accept/rej
     $o .= _generate_acc_rej($data);
+
+    $o .= '<br>' . $n;
+
+    # az
+    $o .= _generate_az($data);
 
     $o .= '<br>' . $n;
 
@@ -445,9 +474,9 @@ function _generate_cluster($data)
 
     $o  = '';
 
-    $o .= '<div style="height: 350px; overflow: auto; margin-bottom: 20px;">' . $n;
+    $o .= '<div style="height: 350px; overflow: auto;">' . $n;
 
-    $o .= '<table class="table header-fixed" style="margin-bottom: 20px;">' . $n;
+    $o .= '<table class="table header-fixed">' . $n;
 
     # head
     $o .= '<thead>' . $n;
@@ -494,6 +523,64 @@ function _generate_cluster($data)
 
     return $o;
 }
+
+// _generate_az($data);
+function _generate_az($data)
+{
+    global $n, $t, $tt;
+
+    $o  = '';
+
+    $o .= '<div style="height: 185px;">' . $n;
+
+    $o .= '<table class="table header-fixed">' . $n;
+
+    # head
+    $o .= '<thead>' . $n;
+    $o .= $t . '<tr>' . $n;
+    $o .= $tt . '<th class="col-md-3"></th>' . $n;
+    $o .= $tt . '<th class="col-md-3">IN</th>' . $n;
+    $o .= $tt . '<th class="col-md-3">OUT</th>' . $n;
+    $o .= $tt . '<th class="col-md-3">SUM</th>' . $n;
+    $o .= $t . '</tr>' . $n;
+    $o .= '</thead>' . $n;
+
+    # azs
+    $x_azs = array_keys($data['stats']['total']['az']);
+
+    # body
+    $o .= '<tbody>' . $n;
+
+    # iterate..
+    foreach ($x_azs as $x_az) {
+        $o .= $t . '<tr>' . $n;
+
+        $o .= $tt . '<th>' . $x_az . '</th>' . $n;
+
+        $in = 0;
+        if (isset($data['stats']['in']['az'][$x_az])) $in += $data['stats']['in']['az'][$x_az];
+
+        $o .= $tt . '<td>' . _format_bytes($in) . '</td>' . $n;
+
+        $out = 0;
+        if (isset($data['stats']['out']['az'][$x_az])) $out += $data['stats']['out']['az'][$x_az];
+
+        $o .= $tt . '<td>' . _format_bytes($out) . '</td>' . $n;
+
+        $o .= $tt . '<td>' . _format_bytes($in + $out) . '</td>' . $n;
+
+        $o .= $t . '</tr>' . $n;
+    }
+
+    # foot
+    $o .= '</tbody>' . $n;
+    $o .= '</table>' . $n;
+
+    $o .= '</div>' . $n;
+
+    return $o;
+}
+
 // _pie_in_out($data);
 function _pie_in_out($data)
 {
