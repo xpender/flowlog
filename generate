@@ -29,6 +29,12 @@ require PROJECT_ROOT . '/config.php';
 // jpgraph
 JpGraph\JpGraph::module('pie');
 
+// create target dir
+@mkdir(
+    PROJECT_ROOT . '/out/' . date('Ymd') . '/',
+    0777
+    );
+
 // contains all data for generating HTML
 $instances = [];
 $clusters = [];
@@ -177,7 +183,7 @@ $o .= '</div>' . $n;
 $o .= $footer;
 
 file_put_contents(
-    PROJECT_ROOT . '/out/index.html',
+    PROJECT_ROOT . '/out/' . date('Ymd') . '/index.html',
     $o
     );
 
@@ -240,7 +246,7 @@ $o .= '</div>' . $n;
 $o .= $footer;
 
 file_put_contents(
-    PROJECT_ROOT . '/out/clusters.html',
+    PROJECT_ROOT . '/out/' . date('Ymd') . '/clusters.html',
     $o
     );
 
@@ -303,7 +309,7 @@ $o .= '</div>' . $n;
 $o .= $footer;
 
 file_put_contents(
-    PROJECT_ROOT . '/out/instances.html',
+    PROJECT_ROOT . '/out/' . date('Ymd') . '/instances.html',
     $o
     );
 
