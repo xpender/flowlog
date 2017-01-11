@@ -1,6 +1,5 @@
 {
     "require": {
-        "aws/aws-sdk-php": "~3.0",
-        "jpgraph/jpgraph": "dev-master"
+        "aws/aws-sdk-php": "~3.0"
     }
 }

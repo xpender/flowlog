@@ -6,6 +6,7 @@ https://aws.amazon.com/blogs/aws/vpc-flow-logs-log-and-view-network-traffic-flow
 
 ### HOWTO ###
 
+* Download & install jpgraph: "wget http://jpgraph.net/download/download.php?p=11 -o jpgraph.tar.gz" && "tar xvf jpgraph.tar.gz && mv jpgraph-* jpgraph"
 * Expects that you have your credentials in `~/.aws/credentials` (default profile)
 * Adjust `config.php`
 * Install deps via composer (https://getcomposer.org/doc/00-intro.md#using-composer)
